@@ -3,7 +3,7 @@
 This project demonstrates how to fine-tune a large language model (LLM) for SQL query generation using Modal, a cloud platform for running distributed Python applications.
 
 ## Overview
-The application fine-tunes the Microsoft Phi-3-mini-4k-instruct model on a SQL dataset to improve its ability to generate SQL queries from natural language questions. It uses Parameter-Efficient Fine-Tuning (PEFT) with LoRA adapters for efficient training.
+The application fine-tunes the Microsoft `Phi-3-mini-4k-instruct` model on a SQL dataset to improve its ability to generate SQL queries from natural language questions. It uses Parameter-Efficient Fine-Tuning (PEFT) with LoRA adapters for efficient training.
 
 ## Features
 - Dataset preprocessing and caching
@@ -30,7 +30,7 @@ This will:
 1. Set up the environment and preprocess the dataset
 2. ine-tune the model
 3. Evaluate the fine-tuned model
-4. 
+
 ## Code Structure
 - `setup_and_preprocess()`: Prepares the dataset and caches it in a Modal Volume
 - `train_model()`: Fine-tunes the model using PEFT and LoRA
