@@ -1,5 +1,6 @@
-import modal
 import os
+
+import modal
 
 app = modal.App("llm-sql-finetune")
 
@@ -8,27 +9,27 @@ vol = modal.Volume.from_name("llm-sql-finetune-volume", create_if_missing=True)
 cpu_image = (
     modal.Image.debian_slim(python_version="3.10")
     .pip_install(
-        "datasets",
+        "datasets==3.5.1",
     )
 )
 
 gpu_image = (
     modal.Image.from_registry(
-        "nvidia/cuda:12.2.0-devel-ubuntu22.04", add_python="3.10"
+        "nvidia/cuda:12.8.0-devel-ubuntu22.04", add_python="3.11"
     )
     .pip_install(
-        "torch",
-        "transformers",
-        "datasets",
-        "peft",
-        "trl",
+        "torch==2.6.0",
+        "transformers==4.51.3",
+        "datasets==3.5.1",
+        "peft==0.15.2",
+        "trl==0.17.0",
         # needed for flash-attn
         "ninja",
         "packaging",
         "wheel",
     )
     .apt_install("git")
-    .pip_install("flash-attn", 
+    .pip_install("flash-attn==2.7.4.post1", 
                  extra_options="--no-build-isolation")
 )
 
@@ -37,6 +38,7 @@ gpu_image = (
               cpu=1.0)
 def setup_and_preprocess():
     from pathlib import Path
+
     from datasets import load_dataset, load_from_disk
 
     CACHE_DIR = Path("/data/llm-finetune")
@@ -81,10 +83,12 @@ def setup_and_preprocess():
               )
 def train_model(cache_dir: str):
     from pathlib import Path
+
     from datasets import load_from_disk
     from peft import LoraConfig
+    from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                              TrainingArguments)
     from trl import SFTTrainer
-    from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 
     CACHE_DIR = Path(cache_dir)
     OUTPUT_DIR = CACHE_DIR / 'output_dir'
@@ -135,7 +139,8 @@ def train_model(cache_dir: str):
     model_id = "microsoft/Phi-3-mini-4k-instruct"
     model = AutoModelForCausalLM.from_pretrained(model_id, 
                                                  token=os.environ['HF_TOKEN'],
-                                                 trust_remote_code=True)
+                                                 trust_remote_code=True,
+                                                 attn_implementation="flash_attention_2")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     tokenizer.pad_token = tokenizer.unk_token
 
@@ -159,10 +164,7 @@ def train_model(cache_dir: str):
         peft_config=peft_conf,
         train_dataset=processed_train_dataset,
         eval_dataset=processed_test_dataset,
-        max_seq_length=2048,
-        dataset_text_field="text",
-        tokenizer=tokenizer,
-        packing=True
+        processing_class=tokenizer
     )
 
     # Train the model
@@ -181,15 +183,17 @@ def train_model(cache_dir: str):
               )
 def evaluate_model(model_path: str, cache_dir: str):
     from pathlib import Path
-    from datasets import load_from_disk
-    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
     import torch
+    from datasets import load_from_disk
     from tqdm import tqdm
+    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
     CACHE_DIR = Path(cache_dir)
     test_dataset = load_from_disk(dataset_path=str(CACHE_DIR / "test_dataset"))
 
-    model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True).to("cuda")
+    model = AutoModelForCausalLM.from_pretrained(model_path, 
+                                                 trust_remote_code=False).to("cuda")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     # Create a text-generation pipeline
